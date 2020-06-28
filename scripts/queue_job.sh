@@ -12,10 +12,14 @@ DEVICE=$2
 VIDEO=$3
 
 QUEUE=$4
+
 OUTPUT=$5
 
 # TODO: Create PEOPLE variable
 PEOPLE=$6
+
+# Create vertical queue variable
+VERTICAL=$7
 
 mkdir -p $5
 
@@ -35,6 +39,7 @@ python3 person_detect.py  --model ${MODEL} \
                           --queue_param ${QUEUE} \
                           --output_path ${OUTPUT}\
                           --max_people ${PEOPLE} \
+                          --v_queue ${VERTICAL} \
 
 cd /output
 

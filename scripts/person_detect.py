@@ -1,4 +1,6 @@
 
+# TODO: Make variable for number of queues and declare it along with everything else
+
 import numpy as np
 import time
 from openvino.inference_engine import IENetwork, IECore
@@ -6,6 +8,7 @@ import os
 import cv2
 import argparse
 import sys
+
 # to average inference request results
 from statistics import mean 
 
@@ -34,20 +37,6 @@ class Queue:
         
         self.queues.append(points)
 
-    def get_queues(self, image):
-        """
-        Get queues from images.
-        Args:
-            image: A list of the image.
-        Yields:
-            A list containing each frame.
-        """
-            
-        for q in self.queues:
-            x_min, y_min, x_max, y_max=q
-            frame=image[y_min:y_max, x_min:x_max]
-            yield frame
-    
     def check_coords(self, coords, initial_w, initial_h):
         """
         Checks queue coordinates.
@@ -57,9 +46,10 @@ class Queue:
             initial_h: initial height
         """
         
-        d={k+1:0 for k in range(len(self.queues))}
+        result={k+1:0 for k in range(len(self.queues))}
         
-        dummy = ['0', '1' , '2', '3']
+        # make a dummy variable to check over it
+        check_list = ['0', '1' , '2', '3']
         
         for coord in coords:
             xmin = int(coord[3] * initial_w)
@@ -67,15 +57,15 @@ class Queue:
             xmax = int(coord[5] * initial_w)
             ymax = int(coord[6] * initial_h)
             
-            dummy[0] = xmin
-            dummy[1] = ymin
-            dummy[2] = xmax
-            dummy[3] = ymax
+            check_list[0] = xmin
+            check_list[1] = ymin
+            check_list[2] = xmax
+            check_list[3] = ymax
             
-            for i, q in enumerate(self.queues):
-                if dummy[0]>q[0] and dummy[2]<q[2]:
-                    d[i+1]+=1
-        return d
+            for i, j in enumerate(self.queues):
+                if check_list[0]>j[0] and check_list[2]<j[2]:
+                    result[i+1]+=1
+        return result
 
 
 class PersonDetect:
@@ -237,13 +227,35 @@ def main(args):
     video_file=args.video
     max_people=args.max_people
     threshold=args.threshold
-    output_path=args.output_path
-
+    output_path=args.output_path    
     start_model_load_time=time.time()
     pd= PersonDetect(model, device, threshold)
     pd.load_model()
     total_model_load_time = time.time() - start_model_load_time
+    
+    # Convert string argument to boolean
+    vertical_queue=int(args.v_queue)
+    
+    # Set defaults for cv2.puttext
+    # Choose font
+    font = cv2.FONT_HERSHEY_COMPLEX
+    
+    # Choose OpenCV BGR color
+    # Bright green for debugging
+    color = (0, 225, 0) 
+    # Bright red for warnings
+    warning_color = (0, 0 , 225)
+    
+    # Choose fontscale depending on the information displayed
+    debug_scale = 1
+    queue_scale = 5
+    warning_scale = 4
+    
+    # Choose font thickness
+    normal_thickness = 2
+    queue_thickness = 6
 
+    # Get queue
     queue=Queue()
     
     try:
@@ -264,13 +276,25 @@ def main(args):
     initial_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     video_len = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))        
+    
+    # Get frame size information
+    w_center = int(initial_w/2)-40
+    w_left = int(initial_w/4)
+    w_further_left = int(initial_w/8)
+    w_far_left = int(initial_w/10)    
+    h_center = int(initial_h/2)  
+    h_offset = int(initial_h/7)   
 
     out_video = cv2.VideoWriter(os.path.join(output_path, 'output_video.mp4'), cv2.VideoWriter_fourcc(*'avc1'), fps, (initial_w, initial_h), True)
     
     counter=0
     start_inference_time=time.time()      
     
+    # Create people count array in order to average results
     people_arr=[]
+    
+    # Debug to see if vertical queue is on
+    print("vertical queue is",vertical_queue, "type",type(vertical_queue))
     
     try:
         while cap.isOpened():
@@ -290,48 +314,62 @@ def main(args):
             
             # must average between the last 5 inferences 
             if len(people_arr)>5:
-
-                # Original
-                # total_msg = f"Total People in frame = {len(coords)}"
+                
                 # Averaged
                 avg_inf_result = int(round(mean(people_arr[len(people_arr)-5:len(people_arr)]),0))
-                total_msg = f"Total People in frame = {avg_inf_result}"
+                total_msg = str(avg_inf_result) + " Total People"
 
                 print(total_msg)                
-                print(f"Number of people in queue = {num_people}")
-                
-                # Writing total people detected on frame
-                cv2.putText(image, total_msg, (15, 130), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2) 
+                print(num_people,"people in queue")               
 
                 # Printing device
                 device_text = "Running Inference on: " + str(device)
-                cv2.putText(image, device_text, (15, 170), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2)
+                cv2.putText(image, device_text, (15, 40), font, debug_scale, color, normal_thickness)
 
                 # Printing frame counter
                 framecount_text = "Frame: " + str(counter) +"/"+ str(video_len)
-                cv2.putText(image, framecount_text, (15, 210), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2)            
+                cv2.putText(image, framecount_text, (15, 80), font, debug_scale, color, normal_thickness)            
 
                 # Printing fps
                 fps_text = "Video FPS: " + str(fps)
-                cv2.putText(image, fps_text, (15, 250), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2)
+                cv2.putText(image, fps_text, (15, 120), font, debug_scale, color, normal_thickness)
                 
                 # Printing people_arr
                 people_arr_txt1 = "Last 5 inference results:"          
-                cv2.putText(image, people_arr_txt1, (15, 290), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2)
+                cv2.putText(image, people_arr_txt1, (15, 160), font, debug_scale, color, normal_thickness)
                 people_arr_txt2 = "people count array: " + str(people_arr[len(people_arr)-5:len(people_arr)])
-                cv2.putText(image, people_arr_txt2, (15, 330), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2)
+                cv2.putText(image, people_arr_txt2, (15, 200), font, debug_scale, color, normal_thickness)
                                 
-                out_text=""
                 y_pixel=50
+                
+                # If queue is vertical check coordinates
+                if vertical_queue == 1:
+                    print("vertical queue:")
+                    
+                    for j, k in num_people.items():
+                        print("Entered v_queue for loop")
+                        print(j, k)                
+                        
+                        queue_text = "Queue "+ str(j) 
+                        count_text = str(k) +" People"                        
+                        print("Queue results:",queue_text, count_text)
+                        
+                        # Put results in frame
+                        cv2.putText(image, queue_text, ((w_center*j)-100, h_center), font, debug_scale, color, normal_thickness,cv2.LINE_AA)
+                        cv2.putText(image, count_text, ((w_center*j)-100, h_center+50), font, debug_scale, color, normal_thickness,cv2.LINE_AA)
+                        
+                        if k >= int(max_people):
+                            print("Max people reached")
+                            max_text = f"Move to next Queue"
+                            cv2.putText(image, max_text, (w_center*j, h_center+h_offset), font, debug_scale, warning_color, normal_thickness)
 
-                for k, v in num_people.items():
-                    print(k, v)
-                    out_text += f"No. of People in Queue {k} is {v} "
-                    if v >= int(max_people):
-                        out_text += f" Queue full; Please move to next Queue "
-                    cv2.putText(image, out_text, (15, y_pixel), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 225, 0), 2)
-                    out_text=""
-                    y_pixel+=40
+                else:
+                    # Writing total people detected on frame                    
+                    cv2.putText(image, str(avg_inf_result), (w_center,h_center), font, queue_scale, color, queue_thickness, cv2.LINE_AA) 
+                    cv2.putText(image, "Total People", (w_left,h_center+h_offset), font, queue_scale, color, queue_thickness, cv2.LINE_AA)
+                    if avg_inf_result > int(max_people):
+                        cv2.putText(image, "CAPACITY FULL", (w_left,h_center+(2*h_offset)), font, warning_scale, warning_color, 2*queue_thickness, cv2.LINE_AA)
+                        cv2.putText(image, "MOVE TO NEXT QUEUE", (w_far_left,h_center+(3*h_offset)), font, warning_scale, warning_color, 2*queue_thickness, cv2.LINE_AA)
 
             out_video.write(image)
             
@@ -359,6 +397,7 @@ if __name__=='__main__':
     parser.add_argument('--output_path', default='/results')
     parser.add_argument('--max_people', default=2)
     parser.add_argument('--threshold', default=0.60)
+    parser.add_argument('--v_queue', default=0)
     
     args=parser.parse_args()
 
