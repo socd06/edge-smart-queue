@@ -1,6 +1,4 @@
 
-# TODO: Make variable for number of queues and declare it along with everything else
-
 import numpy as np
 import time
 from openvino.inference_engine import IENetwork, IECore
@@ -184,26 +182,7 @@ class PersonDetect:
                 det.append(obj)
                 
         return frame, current_count, det
-
-    def preprocess_outputs(self, outputs):
-        """
-        Preprocess the outputs.
-        Args:
-            outputs: The output from predictions.
-        Returns:
-            Preprocessed dictionary.
-        """
-        
-        output_dict = {}
-        for output in outputs:
-            output_name = self.output_name
-            output_img = output
-            output_dict[output_name] = output_img
-        
-        return output_dict
-    
-        return output
-        
+      
 
     def preprocess_input(self, image):
       
