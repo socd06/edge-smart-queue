@@ -42,7 +42,8 @@ Go into repository folder, for example:
 
 `cd ~/git/edge-smart-queue`
 
-Then run the following to run the script on the manufacturing scenario
+Then run the following to run the script on the manufacturing scenario:
+
 `python scripts/person_detect.py --model ~/git/openvino-models/intel/person-detection-retail-0013/FP16/person-detection-retail-0013 --device MYRIAD --video original_videos/Manufacturing.mp4 --output_path results/ --max_people 6 --v_queue 0`
 
 ## scripts
